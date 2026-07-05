@@ -29,14 +29,55 @@ jobs:
           sed -i 's/CONFIG_LOCALVERSION="-InfiniR_cepheus_v1.39_KSUN"/CONFIG_LOCALVERSION="-InfiniR_cepheus_v3.2.0_KSUN"/' arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
 
-      - name: Verifikasi hook lama masih cocok sama source baru
+      - name: Install toolchain (clang + GNU cross-compiler)
         run: |
-          cd kernel
-          grep -rn "ksu_handle_execveat\b" KernelSU-Next/kernel/ | head -5
-          grep -rn "ksu_handle_faccessat\b" KernelSU-Next/kernel/ | head -5
-          grep -rn "ksu_handle_vfs_read\b" KernelSU-Next/kernel/ | head -5
+          sudo apt update
+          sudo apt install -y clang lld llvm bc bison flex libssl-dev libelf-dev build-essential
+          sudo apt install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Cek build.sh asli (biar tau command build yang benar)
+      - name: Clone AnyKernel3
+        run: git clone --depth=1 https://github.com/osm0sis/AnyKernel3
+
+      - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
-          cat build.sh
+          export ARCH=arm64
+          export LLVM=1
+          export CC=clang
+          export AR=llvm-ar
+          export LD=ld.lld
+          export NM=llvm-nm
+          export OBJCOPY=llvm-objcopy
+          export OBJDUMP=llvm-objdump
+          export STRIP=llvm-strip
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export USE_CCACHE=1
+
+          make O=out ARCH=arm64 cepheus_defconfig
+
+          make ARCH=arm64 \
+               O=out \
+               CC=clang \
+               AR=llvm-ar \
+               LD=ld.lld \
+               NM=llvm-nm \
+               OBJCOPY=llvm-objcopy \
+               OBJDUMP=llvm-objdump \
+               STRIP=llvm-strip \
+               -j$(nproc --all)
+
+          echo "=== Verify Image.gz-dtb ==="
+          ls out/arch/arm64/boot/Image.gz-dtb
+
+      - name: Pack AnyKernel3
+        run: |
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          cd AnyKernel3 && zip -r9 ../InfiniR_cepheus_v3.2.0_KSUN.zip * -x README
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfiniR-cepheus-v3.2.0-KSUN
+          path: |
+            InfiniR_cepheus_v3.2.0_KSUN.zip
+            kernel/out/arch/arm64/boot/Image.gz-dtb     
