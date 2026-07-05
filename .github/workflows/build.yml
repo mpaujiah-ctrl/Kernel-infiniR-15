@@ -35,3 +35,8 @@ jobs:
           grep -rn "ksu_handle_execveat\b" KernelSU-Next/kernel/ | head -5
           grep -rn "ksu_handle_faccessat\b" KernelSU-Next/kernel/ | head -5
           grep -rn "ksu_handle_vfs_read\b" KernelSU-Next/kernel/ | head -5
+
+      - name: Cek build.sh asli (biar tau command build yang benar)
+        run: |
+          cd kernel
+          cat build.sh
