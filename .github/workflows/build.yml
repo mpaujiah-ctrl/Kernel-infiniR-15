@@ -80,10 +80,10 @@ jobs:
             fs/susfs.c \
             fs/stat.c \
             fs/overlayfs/inode.c \
-            fs/overlayfs.h \
-            fs/readdir.c \
-            fs/super.c \
-            fs/util.c \
+            fs/overlayfs/overlayfs.h \
+            fs/overlayfs/readdir.c \
+            fs/overlayfs/super.c \
+            fs/overlayfs/util.c \
             include/linux/seccomp.h \
             include/linux/susfs.h \
             include/linux/susfs_def.h \
