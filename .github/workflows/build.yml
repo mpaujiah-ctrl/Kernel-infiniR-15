@@ -81,6 +81,28 @@ jobs:
           echo "=== SUSFS header patched ==="
           grep "susfs_sus_kstat" susfs.h
       
+      - name: Auto-fix balance #ifndef/#endif SUSFS
+        run: |
+          cd kernel/include/linux
+          count_ifndef=$(grep -c "#ifndef" susfs.h)
+          count_endif=$(grep -c "#endif" susfs.h)
+          echo "Jumlah #ifndef: $count_ifndef"
+          echo "Jumlah #endif: $count_endif"
+      
+          if [ $count_ifndef -gt $count_endif ]; then
+            echo ">>> Tambah #endif di akhir file"
+            echo "#endif /* auto-fix SUSFS */" >> susfs.h
+          elif [ $count_ifndef -lt $count_endif ]; then
+            echo ">>> Hapus #endif berlebih di akhir file"
+            sed -i '$d' susfs.h
+          else
+            echo ">>> Header sudah balance"
+          fi
+      
+          echo "=== Struktur header setelah auto-fix ==="
+          grep -n "#ifndef" susfs.h
+          grep -n "#endif" susfs.h
+      
       - name: Auto-replace komentar #endif biar clean
         run: |
           cd kernel/include/linux
