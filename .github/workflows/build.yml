@@ -71,11 +71,31 @@ jobs:
           git add -A
           git commit -m "local changes: defconfig + reboot.c hook" || echo "nothing to commit"
       
-      - name: Upgrade SUSFS ke v2.1.0 (apply commit asli, bukan replace manual)
+      - name: Upgrade SUSFS ke v2.1.0 (checkout file spesifik dari commit asli)
         run: |
           cd kernel
           git fetch --depth=1 https://github.com/raystef66/kernel_xiaomi_cepheus 2659cabe78e8b4fa46d9bb03e113fb9a88e44daf
-          git cherry-pick --no-commit FETCH_HEAD
+
+          git checkout FETCH_HEAD -- \
+            fs/susfs.c \
+            fs/stat.c \
+            fs/overlayfs/inode.c \
+            fs/overlayfs.h \
+            fs/readdir.c \
+            fs/super.c \
+            fs/util.c \
+            include/linux/seccomp.h \
+            include/linux/susfs.h \
+            include/linux/susfs_def.h \
+            security/selinux/hooks.c \
+            security/selinux/include/objsec.h \
+            security/selinux/selinuxfs.c \
+            security/selinux/xfrm.c
+
+          rm -f fs/sus_su.c
+
+          echo "=== Cek versi SUSFS ==="
+          grep "SUSFS_VERSION" include/linux/susfs.h
                   
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
