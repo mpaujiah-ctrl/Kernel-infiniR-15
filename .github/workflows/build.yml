@@ -52,3 +52,15 @@ jobs:
           find . -maxdepth 3 -iname "*kernelsu*" -type d
           echo "=== Isi .git/config soal submodule ==="
           cat .git/config | grep -A3 submodule || echo "Tidak ada submodule aktif di .git/config"
+
+      - name: Cek isi lengkap .gitmodules dan folder KernelSU-Next
+        run: |
+          cd kernel
+          echo "=== ISI LENGKAP .gitmodules ==="
+          cat .gitmodules
+          echo ""
+          echo "=== Isi folder KernelSU-Next ==="
+          ls -la KernelSU-Next/
+          echo ""
+          echo "=== Kalau ada file di dalamnya, cek versi KSUN ==="
+          find KernelSU-Next -iname "*.h" | xargs grep -l "KSU_VERSION\|VERSION_CODE" 2>/dev/null | head -5
