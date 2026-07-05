@@ -71,6 +71,24 @@ jobs:
           curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/include/linux/susfs_def.h" -o include/linux/susfs_def.h
           grep "SUSFS_VERSION" include/linux/susfs.h
       
+      - name: Patch SUSFS header biar sinkron
+        run: |
+          cd kernel/include/linux
+          # Hapus deklarasi lama yang bikin linker error
+          sed -i '/susfs_sus_ino_for_generic_fillattr/d' susfs.h
+          # Tambahkan deklarasi API baru sesuai SUSFS v2.1.0
+          echo "extern int susfs_sus_kstat(struct kstat *stat, struct inode *inode);" >> susfs.h
+          echo "=== SUSFS header patched ==="
+          grep "susfs_sus_kstat" susfs.h
+
+      - name: Patch fs/stat.c supaya pakai API baru
+        run: |
+          cd kernel/fs
+          # Ganti pemanggilan fungsi lama ke fungsi baru
+          sed -i 's/susfs_sus_ino_for_generic_fillattr/susfs_sus_kstat/g' stat.c
+          echo "=== fs/stat.c patched ==="
+          grep "susfs_sus_kstat" stat.c
+      
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
