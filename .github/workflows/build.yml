@@ -74,17 +74,30 @@ jobs:
       - name: Patch SUSFS header biar sinkron
         run: |
           cd kernel/include/linux
-          # Hapus deklarasi lama yang bikin linker error
+          # Hapus deklarasi lama
           sed -i '/susfs_sus_ino_for_generic_fillattr/d' susfs.h
-          # Tambahkan deklarasi API baru sesuai SUSFS v2.1.0
-          echo "extern int susfs_sus_kstat(struct kstat *stat, struct inode *inode);" >> susfs.h
+          # Sisipkan deklarasi baru sebelum #endif terakhir
+          sed -i '/#endif/i extern int susfs_sus_kstat(struct kstat *stat, struct inode *inode);' susfs.h
           echo "=== SUSFS header patched ==="
           grep "susfs_sus_kstat" susfs.h
-
+      
+      - name: Validasi struktur header SUSFS
+        run: |
+          cd kernel/include/linux
+          echo "=== Cek jumlah #ifndef dan #endif ==="
+          grep -n "#ifndef" susfs.h
+          grep -n "#endif" susfs.h
+          # Pastikan jumlahnya balance
+          if [ $(grep -c "#ifndef" susfs.h) -ne $(grep -c "#endif" susfs.h) ]; then
+            echo "!!! Header tidak balance, cek manual !!!"
+            exit 1
+          else
+            echo "=== Header balance ==="
+          fi
+      
       - name: Patch fs/stat.c supaya pakai API baru
         run: |
           cd kernel/fs
-          # Ganti pemanggilan fungsi lama ke fungsi baru
           sed -i 's/susfs_sus_ino_for_generic_fillattr/susfs_sus_kstat/g' stat.c
           echo "=== fs/stat.c patched ==="
           grep "susfs_sus_kstat" stat.c
