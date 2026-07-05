@@ -1,1 +1,46 @@
 
+name: Kernel InfiniR A15 - Recon
+
+on:
+  workflow_dispatch:
+
+jobs:
+  recon:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Clone kernel source (raystef66, branch 15.0)
+        run: git clone --depth=1 -b 15.0 https://github.com/raystef66/kernel_xiaomi_cepheus kernel
+
+      - name: Cek submodule KernelSU-Next (versi yang di-pin sekarang)
+        run: |
+          cd kernel
+          cat .gitmodules
+          echo "=== Commit KernelSU-Next yang dipakai sekarang ==="
+          git submodule status KernelSU-Next 2>/dev/null || echo "Submodule belum di-init, cek manual di .gitmodules"
+
+      - name: Cek apakah hook manual sudah terintegrasi
+        run: |
+          cd kernel
+          echo "=== exec.c ==="
+          grep -n "ksu_handle_execveat" fs/exec.c || echo "TIDAK ADA hook execveat"
+          echo "=== open.c ==="
+          grep -n "ksu_handle_faccessat" fs/open.c || echo "TIDAK ADA hook faccessat"
+          echo "=== read_write.c ==="
+          grep -n "ksu_handle_vfs_read" fs/read_write.c || echo "TIDAK ADA hook vfs_read"
+
+      - name: Cek struktur susfs yang ada sekarang
+        run: |
+          cd kernel
+          echo "=== Cek susfs.c ==="
+          ls -la fs/susfs.c 2>/dev/null || echo "Tidak ada fs/susfs.c"
+          grep "SUSFS_VERSION" include/linux/susfs.h 2>/dev/null || echo "Tidak ada/tidak ketemu versi"
+          echo "=== Cek submodule susfs4ksu ==="
+          cat .gitmodules | grep -A2 susfs4ksu || echo "Tidak ada submodule susfs4ksu"
+
+      - name: Cek defconfig existing (baris KSU/SUSFS)
+        run: |
+          cd kernel
+          grep -E "CONFIG_KSU|CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
