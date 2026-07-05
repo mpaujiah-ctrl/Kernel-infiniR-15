@@ -80,6 +80,16 @@ jobs:
           sed -i '/#endif/i extern int susfs_sus_kstat(struct kstat *stat, struct inode *inode);' susfs.h
           echo "=== SUSFS header patched ==="
           grep "susfs_sus_kstat" susfs.h
+                  
+      - name: Auto-replace komentar #endif biar clean
+        run: |
+          cd kernel/include/linux
+          # Ganti semua #endif // ... jadi #endif /* ... */
+          sed -i 's/#endif[[:space:]]*\/\/[[:space:]]*/#endif \/\* /g' susfs.h
+          # Tutup komentar dengan */
+          sed -i 's/#endif \/\* \(.*\)$/#endif \/\* \1 \*\//g' susfs.h
+          echo "=== Semua komentar #endif sudah dibersihkan ==="
+          grep "#endif" susfs.h
       
       - name: Auto-fix balance #ifndef/#endif SUSFS
         run: |
@@ -102,16 +112,6 @@ jobs:
           echo "=== Struktur header setelah auto-fix ==="
           grep -n "#ifndef" susfs.h
           grep -n "#endif" susfs.h
-      
-      - name: Auto-replace komentar #endif biar clean
-        run: |
-          cd kernel/include/linux
-          # Ganti semua #endif // ... jadi #endif /* ... */
-          sed -i 's/#endif[[:space:]]*\/\/[[:space:]]*/#endif \/\* /g' susfs.h
-          # Tutup komentar dengan */
-          sed -i 's/#endif \/\* \(.*\)$/#endif \/\* \1 \*\//g' susfs.h
-          echo "=== Semua komentar #endif sudah dibersihkan ==="
-          grep "#endif" susfs.h
       
       - name: Validasi struktur header SUSFS
         run: |
