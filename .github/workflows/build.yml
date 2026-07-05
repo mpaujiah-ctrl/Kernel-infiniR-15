@@ -1,11 +1,10 @@
-
-name: Kernel InfiniR A15 - Recon
+name: Kernel InfiniR A15 - Upgrade KSUN 3.2.0
 
 on:
   workflow_dispatch:
 
 jobs:
-  recon:
+  build:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
@@ -14,68 +13,25 @@ jobs:
       - name: Clone kernel source (raystef66, branch 15.0)
         run: git clone --depth=1 -b 15.0 https://github.com/raystef66/kernel_xiaomi_cepheus kernel
 
-      - name: Cek submodule KernelSU-Next (versi yang di-pin sekarang)
+      - name: Upgrade KernelSU-Next dari v1.39 (81dff86) ke v3.2.0 (00cb93e)
         run: |
           cd kernel
-          cat .gitmodules
-          echo "=== Commit KernelSU-Next yang dipakai sekarang ==="
-          git submodule status KernelSU-Next 2>/dev/null || echo "Submodule belum di-init, cek manual di .gitmodules"
+          rm -rf KernelSU-Next
+          mkdir -p KernelSU-Next
+          curl -sL "https://github.com/rifsxd/KernelSU-Next/archive/00cb93e0bc8bf3ca3680c7e8a3d7cf11d0b59071.tar.gz" -o ksun.tar.gz
+          tar -xzf ksun.tar.gz -C KernelSU-Next --strip-components=1
+          rm ksun.tar.gz
+          ls KernelSU-Next/kernel/
 
-      - name: Cek apakah hook manual sudah terintegrasi
+      - name: Update defconfig localversion
         run: |
           cd kernel
-          echo "=== exec.c ==="
-          grep -n "ksu_handle_execveat" fs/exec.c || echo "TIDAK ADA hook execveat"
-          echo "=== open.c ==="
-          grep -n "ksu_handle_faccessat" fs/open.c || echo "TIDAK ADA hook faccessat"
-          echo "=== read_write.c ==="
-          grep -n "ksu_handle_vfs_read" fs/read_write.c || echo "TIDAK ADA hook vfs_read"
+          sed -i 's/CONFIG_LOCALVERSION="-InfiniR_cepheus_v1.39_KSUN"/CONFIG_LOCALVERSION="-InfiniR_cepheus_v3.2.0_KSUN"/' arch/arm64/configs/cepheus_defconfig
+          grep "CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
 
-      - name: Cek struktur susfs yang ada sekarang
+      - name: Verifikasi hook lama masih cocok sama source baru
         run: |
           cd kernel
-          echo "=== Cek susfs.c ==="
-          ls -la fs/susfs.c 2>/dev/null || echo "Tidak ada fs/susfs.c"
-          grep "SUSFS_VERSION" include/linux/susfs.h 2>/dev/null || echo "Tidak ada/tidak ketemu versi"
-          echo "=== Cek submodule susfs4ksu ==="
-          cat .gitmodules | grep -A2 susfs4ksu || echo "Tidak ada submodule susfs4ksu"
-
-      - name: Cek defconfig existing (baris KSU/SUSFS)
-        run: |
-          cd kernel
-          grep -E "CONFIG_KSU|CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
-
-      - name: Cek folder aktual tempat source KSU disimpan
-        run: |
-          cd kernel
-          echo "=== Cari folder KernelSU/KernelSU-Next ==="
-          find . -maxdepth 3 -iname "*kernelsu*" -type d
-          echo "=== Isi .git/config soal submodule ==="
-          cat .git/config | grep -A3 submodule || echo "Tidak ada submodule aktif di .git/config"
-
-      - name: Cek isi lengkap .gitmodules dan folder KernelSU-Next
-        run: |
-          cd kernel
-          echo "=== ISI LENGKAP .gitmodules ==="
-          cat .gitmodules
-          echo ""
-          echo "=== Isi folder KernelSU-Next ==="
-          ls -la KernelSU-Next/
-          echo ""
-          echo "=== Kalau ada file di dalamnya, cek versi KSUN ==="
-          find KernelSU-Next -iname "*.h" | xargs grep -l "KSU_VERSION\|VERSION_CODE" 2>/dev/null | head -5
-
-      - name: Cek submodule dengan command git yang benar
-        run: |
-          cd kernel
-          echo "=== git ls-tree - cek entry apa yang tercatat buat KernelSU-Next ==="
-          git ls-tree HEAD | grep -i kernelsu
-          echo ""
-          echo "=== git submodule status (lengkap) ==="
-          git submodule status
-          echo ""
-          echo "=== Coba init submodule KernelSU-Next secara spesifik ==="
-          git submodule update --init KernelSU-Next 2>&1 || echo "GAGAL init, cek pesan di atas"
-          echo ""
-          echo "=== Isi folder setelah init ==="
-          ls -la KernelSU-Next/
+          grep -rn "ksu_handle_execveat\b" KernelSU-Next/kernel/ | head -5
+          grep -rn "ksu_handle_faccessat\b" KernelSU-Next/kernel/ | head -5
+          grep -rn "ksu_handle_vfs_read\b" KernelSU-Next/kernel/ | head -5
