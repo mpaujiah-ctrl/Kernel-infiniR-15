@@ -63,6 +63,14 @@ jobs:
             echo "=== Hook sudah ada ==="
           fi
       
+      - name: Commit perubahan lokal sebelum cherry-pick
+        run: |
+          cd kernel
+          git config user.email "ci@build.local"
+          git config user.name "CI Build"
+          git add -A
+          git commit -m "local changes: defconfig + reboot.c hook" || echo "nothing to commit"
+      
       - name: Upgrade SUSFS ke v2.1.0 (apply commit asli, bukan replace manual)
         run: |
           cd kernel
