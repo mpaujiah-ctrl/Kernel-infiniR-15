@@ -44,3 +44,11 @@ jobs:
         run: |
           cd kernel
           grep -E "CONFIG_KSU|CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
+
+      - name: Cek folder aktual tempat source KSU disimpan
+        run: |
+          cd kernel
+          echo "=== Cari folder KernelSU/KernelSU-Next ==="
+          find . -maxdepth 3 -iname "*kernelsu*" -type d
+          echo "=== Isi .git/config soal submodule ==="
+          cat .git/config | grep -A3 submodule || echo "Tidak ada submodule aktif di .git/config"
