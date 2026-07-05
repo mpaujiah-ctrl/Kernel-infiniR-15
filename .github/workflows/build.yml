@@ -38,6 +38,31 @@ jobs:
       - name: Clone AnyKernel3
         run: git clone --depth=1 https://github.com/osm0sis/AnyKernel3
 
+      - name: Fix yamltree.c (stub kosong, solusi dari TURTLE)
+        run: |
+          cd kernel
+          cat > scripts/dtc/yamltree.c << 'CEOF'
+          #include <stdio.h>
+          #include <stdlib.h>
+          
+          struct dt_info;
+          
+          void dt_to_yaml(FILE *outf, struct dt_info *dti) {}
+          CEOF
+          echo "yamltree.c replaced with stub"
+      
+      - name: Inject manual hook ke kernel/reboot.c (required by KSUN 3.2.0 Kbuild check)
+        run: |
+          cd kernel
+          if ! grep -q "ksu_handle_sys_reboot" kernel/reboot.c; then
+            sed -i '/^SYSCALL_DEFINE4(reboot/i extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg4);' kernel/reboot.c
+            sed -i '/if (magic1 != LINUX_REBOOT_MAGIC1/i \\tksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);' kernel/reboot.c
+            echo "=== Hook injected ==="
+            grep -n "ksu_handle_sys_reboot" kernel/reboot.c
+          else
+            echo "=== Hook sudah ada ==="
+          fi
+      
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
