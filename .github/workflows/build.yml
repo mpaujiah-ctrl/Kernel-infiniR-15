@@ -64,3 +64,18 @@ jobs:
           echo ""
           echo "=== Kalau ada file di dalamnya, cek versi KSUN ==="
           find KernelSU-Next -iname "*.h" | xargs grep -l "KSU_VERSION\|VERSION_CODE" 2>/dev/null | head -5
+
+      - name: Cek submodule dengan command git yang benar
+        run: |
+          cd kernel
+          echo "=== git ls-tree - cek entry apa yang tercatat buat KernelSU-Next ==="
+          git ls-tree HEAD | grep -i kernelsu
+          echo ""
+          echo "=== git submodule status (lengkap) ==="
+          git submodule status
+          echo ""
+          echo "=== Coba init submodule KernelSU-Next secara spesifik ==="
+          git submodule update --init KernelSU-Next 2>&1 || echo "GAGAL init, cek pesan di atas"
+          echo ""
+          echo "=== Isi folder setelah init ==="
+          ls -la KernelSU-Next/
