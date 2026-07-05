@@ -96,6 +96,18 @@ jobs:
 
           echo "=== Cek versi SUSFS ==="
           grep "SUSFS_VERSION" include/linux/susfs.h
+
+      - name: Sinkronkan fs/stat.c dengan SUSFS v2.1.0 (fix undefined symbol)
+        run: |
+          cd kernel
+          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/stat.c" -o fs/stat.c
+          grep -c "susfs" fs/stat.c
+
+      - name: Sinkronkan fs/proc/task_mmu.c juga (biasanya sepaket sama stat.c)
+        run: |
+          cd kernel
+          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/proc/task_mmu.c" -o fs/proc/task_mmu.c
+          grep -c "susfs" fs/proc/task_mmu.c
                   
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
