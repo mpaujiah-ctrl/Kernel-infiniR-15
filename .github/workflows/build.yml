@@ -81,6 +81,16 @@ jobs:
           echo "=== SUSFS header patched ==="
           grep "susfs_sus_kstat" susfs.h
       
+      - name: Auto-replace komentar #endif biar clean
+        run: |
+          cd kernel/include/linux
+          # Ganti semua #endif // ... jadi #endif /* ... */
+          sed -i 's/#endif[[:space:]]*\/\/[[:space:]]*/#endif \/\* /g' susfs.h
+          # Tutup komentar dengan */
+          sed -i 's/#endif \/\* \(.*\)$/#endif \/\* \1 \*\//g' susfs.h
+          echo "=== Semua komentar #endif sudah dibersihkan ==="
+          grep "#endif" susfs.h
+      
       - name: Validasi struktur header SUSFS
         run: |
           cd kernel/include/linux
