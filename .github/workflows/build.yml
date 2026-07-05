@@ -63,13 +63,11 @@ jobs:
             echo "=== Hook sudah ada ==="
           fi
       
-      - name: Upgrade SUSFS ke v2.1.0 (sinkron sama KSUN 3.2.0)
+      - name: Upgrade SUSFS ke v2.1.0 (apply commit asli, bukan replace manual)
         run: |
           cd kernel
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/susfs.c" -o fs/susfs.c
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/include/linux/susfs.h" -o include/linux/susfs.h
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/include/linux/susfs_def.h" -o include/linux/susfs_def.h
-          grep "SUSFS_VERSION" include/linux/susfs.h
+          git fetch --depth=1 https://github.com/raystef66/kernel_xiaomi_cepheus 2659cabe78e8b4fa46d9bb03e113fb9a88e44daf
+          git cherry-pick --no-commit FETCH_HEAD
                   
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
