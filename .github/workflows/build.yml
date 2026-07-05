@@ -74,22 +74,16 @@ jobs:
       - name: Patch SUSFS header biar sinkron
         run: |
           cd kernel/include/linux
-          # Hapus deklarasi lama
           sed -i '/susfs_sus_ino_for_generic_fillattr/d' susfs.h
-          # Sisipkan deklarasi baru sebelum #endif terakhir
           sed -i '/#endif/i extern int susfs_sus_kstat(struct kstat *stat, struct inode *inode);' susfs.h
           echo "=== SUSFS header patched ==="
-          grep "susfs_sus_kstat" susfs.h
-                  
+      
       - name: Auto-replace komentar #endif biar clean
         run: |
           cd kernel/include/linux
-          # Ganti semua #endif // ... jadi #endif /* ... */
           sed -i 's/#endif[[:space:]]*\/\/[[:space:]]*/#endif \/\* /g' susfs.h
-          # Tutup komentar dengan */
           sed -i 's/#endif \/\* \(.*\)$/#endif \/\* \1 \*\//g' susfs.h
           echo "=== Semua komentar #endif sudah dibersihkan ==="
-          grep "#endif" susfs.h
       
       - name: Auto-fix balance #ifndef/#endif SUSFS
         run: |
@@ -119,13 +113,18 @@ jobs:
           echo "=== Cek jumlah #ifndef dan #endif ==="
           grep -n "#ifndef" susfs.h
           grep -n "#endif" susfs.h
-          # Pastikan jumlahnya balance
           if [ $(grep -c "#ifndef" susfs.h) -ne $(grep -c "#endif" susfs.h) ]; then
             echo "!!! Header tidak balance, cek manual !!!"
             exit 1
           else
             echo "=== Header balance ==="
           fi
+      
+      - name: Cek versi SUSFS
+        run: |
+          cd kernel/include/linux
+          echo "=== SUSFS_VERSION ==="
+          grep -n "SUSFS_VERSION" susfs.h || echo "Tidak ada versi terdeteksi"
       
       - name: Patch fs/stat.c supaya pakai API baru
         run: |
