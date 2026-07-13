@@ -131,6 +131,7 @@ jobs:
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          cp kernel/out/arch/arm64/boot/Image kernel-pure.img
           cd AnyKernel3 && zip -r9 ../InfiniR_cepheus_v3.2.0_KSUN.zip * -x README
 
       - name: Upload artifact
@@ -139,4 +140,5 @@ jobs:
           name: InfiniR-cepheus-v3.2.0-KSUN
           path: |
             InfiniR_cepheus_v3.2.0_KSUN.zip
-            kernel/out/arch/arm64/boot/Image.gz-dtb     
+            kernel/out/arch/arm64/boot/Image.gz-dtb
+            kernel-pure.img    
