@@ -1,4 +1,4 @@
-name: Kernel InfiniR A15 - ReSukiSU
+name: Kernel InfiniR A15 - ReSukiSU (fixed hooks)
 
 on:
   workflow_dispatch:
@@ -18,12 +18,26 @@ jobs:
           cd kernel
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
+      - name: Print ReSukiSU commit hash (buat debugging versi drift)
+        run: |
+          cd kernel/KernelSU
+          echo "=== ReSukiSU commit used in this build ==="
+          git log -1 --oneline
+          git log -1 --format="%H %cd"
+
       - name: Update defconfig localversion + enable KSU/SUSFS
         run: |
           cd kernel
           sed -i 's/CONFIG_LOCALVERSION="-InfiniR_cepheus_v1.39_KSUN"/CONFIG_LOCALVERSION="-TURTLE-ReSukiSU+SUSFS-V2"/' arch/arm64/configs/cepheus_defconfig
           echo "CONFIG_KSU=y" >> arch/arm64/configs/cepheus_defconfig
           echo "CONFIG_KSU_SUSFS=y" >> arch/arm64/configs/cepheus_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/arm64/configs/cepheus_defconfig
+          # Auto-hooks so we don't have to hand-patch things ReSukiSU can already
+          # apply itself via LSM/input-handler on kernels below 6.8:
+          echo "CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y" >> arch/arm64/configs/cepheus_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y" >> arch/arm64/configs/cepheus_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y" >> arch/arm64/configs/cepheus_defconfig
+          echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_LOCALVERSION\|CONFIG_KSU" arch/arm64/configs/cepheus_defconfig
 
       - name: Install toolchain (clang + GNU cross-compiler)
@@ -48,19 +62,32 @@ jobs:
           CEOF
           echo "yamltree.c replaced with stub"
 
-      - name: Inject manual hook ke kernel/reboot.c (required by ReSukiSU Kbuild check)
+      - name: Verify required manual hooks (stat/execve/faccessat) already present
+        run: |
+          cd kernel
+          echo "=== Checking hooks that ReSukiSU requires at ALL kernel versions ==="
+          echo "--- stat.c (ksu_handle_stat) ---"
+          grep -n "ksu_handle_stat\|ksu_handle_newfstat_ret" fs/stat.c || echo "!!! MISSING - stat hook not found, needs manual patch !!!"
+          echo "--- exec.c (ksu_handle_execveat / ksu_handle_execve) ---"
+          grep -n "ksu_handle_execveat\|ksu_handle_execve" fs/exec.c || echo "!!! MISSING - execve hook not found, needs manual patch !!!"
+          echo "--- open.c (ksu_handle_faccessat) ---"
+          grep -n "ksu_handle_faccessat" fs/open.c || echo "!!! MISSING - faccessat hook not found, needs manual patch !!!"
+          echo "(If any show MISSING, build will likely fail at the ReSukiSU Kbuild check step below —"
+          echo " ping balik ke Claude dengan output ini kalau itu terjadi, biar dipatch manual.)"
+
+      - name: Inject manual hook ke kernel/reboot.c (required by ReSukiSU Kbuild check - all versions)
         run: |
           cd kernel
           if ! grep -q "ksu_handle_sys_reboot" kernel/reboot.c; then
             sed -i '/^SYSCALL_DEFINE4(reboot/i extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg4);' kernel/reboot.c
-            sed -i '/if (magic1 != LINUX_REBOOT_MAGIC1/i \\tksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);' kernel/reboot.c
+            sed -i '/if (magic1 != LINUX_REBOOT_MAGIC1/i \\\tksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);' kernel/reboot.c
             echo "=== Hook injected ==="
             grep -n "ksu_handle_sys_reboot" kernel/reboot.c
           else
             echo "=== Hook sudah ada ==="
           fi
 
-      - name: Inject setresuid hook ke kernel/sys.c (required by ReSukiSU SuSFS Inline Hook)
+      - name: Inject setresuid hook ke kernel/sys.c (auto-hookable on <6.8, kept manual as backup)
         run: |
           cd kernel
           if ! grep -q "ksu_handle_setresuid" kernel/sys.c; then
@@ -85,9 +112,9 @@ jobs:
           \tint retval;
           \tkuid_t kruid, keuid, ksuid;
 
-          #ifdef CONFIG_KSU
+          #ifdef CONFIG_KSU_MANUAL_HOOK
           \textern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
-          \tksu_handle_setresuid(ruid, euid, suid);
+          \t(void)ksu_handle_setresuid(ruid, euid, suid);
           #endif
 
           \tkruid = make_kuid(ns, ruid);"""
@@ -102,13 +129,14 @@ jobs:
             echo "=== Hook sudah ada ==="
           fi
 
-      - name: Replace vfs_read hook dengan sys_read hook di fs/read_write.c
+      - name: Inject sys_read hook ke fs/read_write.c (FIXED - pakai gate ksu_init_rc_hook sesuai spek terbaru)
         run: |
           cd kernel
           python3 - << 'PYEOF'
           with open("fs/read_write.c") as f:
               content = f.read()
 
+          # Remove the OLD unconditional vfs_read hook style if present
           old_block = """// KernelSU hook
           #ifdef CONFIG_KSU
           extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
@@ -135,20 +163,26 @@ jobs:
           else:
               print("=== old vfs_read hook not found, skipping removal ===")
 
+          # Inject the CURRENT spec: gated behind ksu_init_rc_hook, not unconditional
           old_read = """SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
           {
           \tstruct fd f = fdget_pos(fd);
           \tssize_t ret = -EBADF;
 
           \tif (f.file) {"""
-          new_read = """SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+          new_read = """#ifdef CONFIG_KSU_MANUAL_HOOK
+          extern bool ksu_init_rc_hook __read_mostly;
+          extern int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr, size_t *count_ptr);
+          #endif
+
+          SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
           {
           \tstruct fd f = fdget_pos(fd);
           \tssize_t ret = -EBADF;
 
-          #ifdef CONFIG_KSU
-          \textern int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr, size_t *count_ptr);
-          \tksu_handle_sys_read(fd, &buf, &count);
+          #ifdef CONFIG_KSU_MANUAL_HOOK
+          \tif (unlikely(ksu_init_rc_hook))
+          \t\tksu_handle_sys_read(fd, &buf, &count);
           #endif
 
           \tif (f.file) {"""
@@ -157,9 +191,9 @@ jobs:
 
           with open("fs/read_write.c", "w") as f:
               f.write(content)
-          print("=== sys_read hook injected ===")
+          print("=== sys_read hook injected (gated behind ksu_init_rc_hook) ===")
           PYEOF
-          grep -n "ksu_handle" fs/read_write.c
+          grep -n "ksu_handle\|ksu_init_rc_hook" fs/read_write.c
 
       - name: Commit perubahan lokal sebelum sync SUSFS
         run: |
@@ -167,7 +201,7 @@ jobs:
           git config user.email "ci@build.local"
           git config user.name "CI Build"
           git add -A
-          git commit -m "local changes: defconfig + reboot/setresuid/read hooks" || echo "nothing to commit"
+          git commit -m "local changes: defconfig + reboot/setresuid/read hooks (fixed rc_hook gate)" || echo "nothing to commit"
 
       - name: Upgrade SUSFS ke v2.1.0 (sinkron sama InfiniR 16.0-ksun)
         run: |
@@ -184,6 +218,11 @@ jobs:
           sed -i 's/extern int ksu_handle_stat(int \*dfd, const char __user \*\*filename_user);/extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);/' fs/stat.c
           sed -i 's/ksu_handle_stat(&dfd, &filename); \/\/ call KSU hook first/ksu_handle_stat(\&dfd, \&filename, \&flags); \/\/ call KSU hook first/' fs/stat.c
           grep -n "ksu_handle_stat" fs/stat.c
+          echo "!!! NOTE: fs/stat.c just got overwritten by the 16.0-ksun copy above."
+          echo "!!! Kalau step 'Verify required manual hooks' di atas tadi PASS untuk stat.c,"
+          echo "!!! cek lagi di sini apakah masih ada ksu_handle_newfstat_ret (return-value hook)."
+          echo "!!! Kalau hilang, itu wajib ditambah manual sesuai docs ReSukiSU."
+          grep -n "ksu_handle_newfstat_ret" fs/stat.c || echo ">>> ksu_handle_newfstat_ret MISSING after susfs sync — perlu dipatch manual!"
 
       - name: Sinkronkan fs/proc/task_mmu.c juga (biasanya sepaket sama stat.c)
         run: |
@@ -198,7 +237,6 @@ jobs:
           with open("fs/susfs.c") as f:
               content = f.read()
 
-          # remove the #ifdef/#endif guards around try_umount (function body stays)
           content = content.replace(
               "/* try_umount */\n#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT\n",
               "/* try_umount */\n"
@@ -208,7 +246,6 @@ jobs:
               "\t}\n}\n\n/* spoof_uname */"
           )
 
-          # add missing susfs_extra_works no-op required by ReSukiSU's kernel_umount.c
           extra_works = '''/* susfs_extra_works: required by ReSukiSU's kernel_umount.c but not
            * implemented by this SUSFS v2.1.0 source — safe no-op. */
           static void susfs_extra_works_fn(struct work_struct *work)
