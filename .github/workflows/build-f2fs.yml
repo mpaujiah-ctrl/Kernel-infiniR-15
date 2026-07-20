@@ -57,26 +57,6 @@ jobs:
           CEOF
           echo "yamltree.c replaced with stub"
       
-      - name: Inject manual hook ke kernel/reboot.c (required by KSUN 3.2.0 Kbuild check)
-        run: |
-          cd kernel
-          if ! grep -q "ksu_handle_sys_reboot" kernel/reboot.c; then
-            sed -i '/^SYSCALL_DEFINE4(reboot/i extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg4);' kernel/reboot.c
-            sed -i '/if (magic1 != LINUX_REBOOT_MAGIC1/i \\tksu_handle_sys_reboot(magic1, magic2, cmd, (void __user **)&arg);' kernel/reboot.c
-            echo "=== Hook injected ==="
-            grep -n "ksu_handle_sys_reboot" kernel/reboot.c
-          else
-            echo "=== Hook sudah ada ==="
-          fi
-      
-      - name: Commit perubahan lokal sebelum cherry-pick
-        run: |
-          cd kernel
-          git config user.email "ci@build.local"
-          git config user.name "CI Build"
-          git add -A
-          git commit -m "local changes: defconfig + reboot.c hook" || echo "nothing to commit"
-      
       - name: Upgrade SUSFS ke v2.1.0 (sinkron sama KSUN 3.2.0)
         run: |
           cd kernel
@@ -97,6 +77,127 @@ jobs:
           curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/proc/task_mmu.c" -o fs/proc/task_mmu.c
           grep -c "susfs" fs/proc/task_mmu.c
                   
+      - name: Inject 5 manual hook wajib KSUN (exec.c, open.c, read_write.c, stat.c, reboot.c)
+        run: |
+          cd kernel
+          python3 - << 'PYEOF'
+          import re, sys
+
+          def patch(path, extern_anchor_pattern, extern_code, call_anchor_pattern, call_code, tag):
+              with open(path, "r") as f:
+                  src = f.read()
+
+              if tag in src:
+                  print(f"[{path}] {tag} sudah ada, skip")
+                  return
+
+              m = re.search(extern_anchor_pattern, src)
+              if not m:
+                  print(f"[{path}] GAGAL: extern anchor gak ketemu -> {extern_anchor_pattern}")
+                  sys.exit(1)
+              insert_at = m.start()
+              src = src[:insert_at] + extern_code + src[insert_at:]
+
+              m2 = re.search(call_anchor_pattern, src)
+              if not m2:
+                  print(f"[{path}] GAGAL: call anchor gak ketemu -> {call_anchor_pattern}")
+                  sys.exit(1)
+              insert_at2 = m2.start()
+              src = src[:insert_at2] + call_code + src[insert_at2:]
+
+              with open(path, "w") as f:
+                  f.write(src)
+              print(f"[{path}] {tag} berhasil di-patch")
+
+          # 1. fs/exec.c -> ksu_handle_execveat
+          patch(
+              "fs/exec.c",
+              r"int do_execve\(struct filename \*filename,",
+              "#ifdef CONFIG_KSU\n"
+              "__attribute__((hot))\n"
+              "extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,\n"
+              "\t\t\t\tvoid *argv, void *envp, int *flags);\n"
+              "#endif\n\n",
+              r"return do_execveat_common\(AT_FDCWD, filename, argv, envp, 0\);",
+              "#ifdef CONFIG_KSU\n\tksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);\n#endif\n\t",
+              "KSU_HOOK_EXEC",
+          )
+
+          # 2. fs/open.c -> ksu_handle_faccessat
+          patch(
+              "fs/open.c",
+              r"SYSCALL_DEFINE3\(faccessat, int, dfd, const char __user \*, filename, int, mode\)",
+              "#ifdef CONFIG_KSU\n"
+              "__attribute__((hot))\n"
+              "extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,\n"
+              "\t\t\t\tint *mode, int *flags);\n"
+              "#endif\n\n",
+              r"if \(mode & ~S_IRWXO\)",
+              "#ifdef CONFIG_KSU\n\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n#endif\n\n\t",
+              "KSU_HOOK_FACCESSAT",
+          )
+
+          # 3. fs/read_write.c -> ksu_handle_sys_read
+          patch(
+              "fs/read_write.c",
+              r"SYSCALL_DEFINE3\(read, unsigned int, fd, char __user \*, buf, size_t, count\)",
+              "#ifdef CONFIG_KSU\n"
+              "extern bool ksu_vfs_read_hook __read_mostly;\n"
+              "extern __attribute__((cold)) int ksu_handle_sys_read(unsigned int fd,\n"
+              "\t\t\t\tchar __user **buf_ptr, size_t *count_ptr);\n"
+              "#endif\n\n",
+              r"if \(f\.file\) \{",
+              "#ifdef CONFIG_KSU\n\tif (unlikely(ksu_vfs_read_hook))\n\t\tksu_handle_sys_read(fd, &buf, &count);\n#endif\n\t",
+              "KSU_HOOK_VFSREAD",
+          )
+
+          # 4. fs/stat.c -> ksu_handle_stat
+          patch(
+              "fs/stat.c",
+              r"SYSCALL_DEFINE4\(newfstatat, int, dfd, const char __user \*, filename,",
+              "#ifdef CONFIG_KSU\n"
+              "__attribute__((hot))\n"
+              "extern int ksu_handle_stat(int *dfd, const char __user **filename_user,\n"
+              "\t\t\t\tint *flags);\n"
+              "#endif\n\n",
+              r"error = vfs_fstatat\(dfd, filename, &stat, flag\);",
+              "#ifdef CONFIG_KSU\n\tksu_handle_stat(&dfd, &filename, &flag);\n#endif\n\t",
+              "KSU_HOOK_STAT",
+          )
+
+          # 5. kernel/reboot.c -> ksu_handle_sys_reboot
+          patch(
+              "kernel/reboot.c",
+              r"SYSCALL_DEFINE4\(reboot, int, magic1, int, magic2, unsigned int, cmd,",
+              "#ifdef CONFIG_KSU\n"
+              "extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);\n"
+              "#endif\n\n",
+              r"/\* We only trust the superuser with rebooting the system\. \*/",
+              "#ifdef CONFIG_KSU\n\tksu_handle_sys_reboot(magic1, magic2, cmd, &arg);\n#endif\n\t",
+              "KSU_HOOK_REBOOT",
+          )
+          PYEOF
+          echo "=== Ringkasan hook yang kepasang ==="
+          grep -rn "ksu_handle_" fs/exec.c fs/open.c fs/read_write.c fs/stat.c kernel/reboot.c
+
+      - name: Verify hook call-sites (verify_ksu_hooks.py)
+        run: |
+          cd kernel
+          # Asumsi verify_ksu_hooks.py ada di root repo (bukan di folder kernel/).
+          # Sesuaikan path di bawah kalau lokasinya beda.
+          python3 ../verify_ksu_hooks.py --kernel-dir . || {
+            echo "Verifikasi hook GAGAL — cek output di atas sebelum lanjut build.";
+            exit 1;
+          }
+
+      - name: Commit perubahan lokal sebelum cherry-pick
+        run: |
+          cd kernel
+          git config user.email "ci@build.local"
+          git config user.name "CI Build"
+          git add -A
+          git commit -m "local changes: defconfig + 5 KSUN manual hooks (exec/open/read_write/stat/reboot)" || echo "nothing to commit"
+      
       - name: Enable F2FS optimization di defconfig
         run: |
           cd kernel
@@ -156,4 +257,4 @@ jobs:
           path: |
             InfiniR_cepheus_v3.2.0_KSUN.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
-            kernel-pure.img    
+            kernel-pure.img
