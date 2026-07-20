@@ -185,7 +185,12 @@ jobs:
           cd kernel
           # Asumsi verify_ksu_hooks.py ada di root repo (bukan di folder kernel/).
           # Sesuaikan path di bawah kalau lokasinya beda.
-          python3 ../verify_ksu_hooks.py --kernel-dir . || {
+          python3 ../verify_ksu_hooks.py \
+            --dfd fs/stat.c \
+            --execveat fs/exec.c \
+            --faccessat fs/open.c \
+            --sys-read fs/read_write.c \
+            --reboot kernel/reboot.c || {
             echo "Verifikasi hook GAGAL — cek output di atas sebelum lanjut build.";
             exit 1;
           }
