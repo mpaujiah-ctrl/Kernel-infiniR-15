@@ -97,6 +97,21 @@ jobs:
           curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/proc/task_mmu.c" -o fs/proc/task_mmu.c
           grep -c "susfs" fs/proc/task_mmu.c
                   
+      - name: Enable F2FS optimization di defconfig
+        run: |
+          cd kernel
+          cat >> arch/arm64/configs/cepheus_defconfig << 'EOF'
+          CONFIG_F2FS_FS=y
+          CONFIG_F2FS_FS_XATTR=y
+          CONFIG_F2FS_FS_POSIX_ACL=y
+          CONFIG_F2FS_FS_ENCRYPTION=y
+          CONFIG_F2FS_FS_SECURITY=y
+          CONFIG_F2FS_FS_COMPRESSION=y
+          CONFIG_F2FS_CHECK_FS=y
+          EOF
+          echo "=== F2FS options added ==="
+          grep "CONFIG_F2FS" arch/arm64/configs/cepheus_defconfig
+      
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
