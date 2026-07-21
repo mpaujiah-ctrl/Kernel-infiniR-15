@@ -32,7 +32,7 @@ jobs:
       - name: Update defconfig localversion
         run: |
           cd kernel
-          sed -i 's/CONFIG_LOCALVERSION="-InfiniR_cepheus_v1.39_KSUN"/CONFIG_LOCALVERSION="-TURTLE-KSUN_3.2.0+SUSFS-V2"/' arch/arm64/configs/cepheus_defconfig
+          sed -i 's/CONFIG_LOCALVERSION="-InfiniR_cepheus_v1.39_KSUN"/CONFIG_LOCALVERSION="-DRAGON-KSUN-F2FS"/' arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
 
       - name: Install toolchain (clang + GNU cross-compiler)
