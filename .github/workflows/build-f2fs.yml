@@ -91,12 +91,13 @@ jobs:
                   print(f"[{path}] {tag} sudah ada, skip")
                   return
 
-              m = re.search(extern_anchor_pattern, src)
-              if not m:
-                  print(f"[{path}] GAGAL: extern anchor gak ketemu -> {extern_anchor_pattern}")
-                  sys.exit(1)
-              insert_at = m.start()
-              src = src[:insert_at] + extern_code + src[insert_at:]
+              if extern_anchor_pattern is not None:
+                  m = re.search(extern_anchor_pattern, src)
+                  if not m:
+                      print(f"[{path}] GAGAL: extern anchor gak ketemu -> {extern_anchor_pattern}")
+                      sys.exit(1)
+                  insert_at = m.start()
+                  src = src[:insert_at] + extern_code + src[insert_at:]
 
               m2 = re.search(call_anchor_pattern, src)
               if not m2:
@@ -152,16 +153,16 @@ jobs:
           )
 
           # 4. fs/stat.c -> ksu_handle_stat
+          # CATATAN: fs/stat.c versi SUSFS v2.1.0 SUDAH mendeklarasikan
+          # "extern int ksu_handle_stat(int *dfd, const char __user **filename_user);"
+          # dengan 2 argumen (bukan 3). Jangan tambah extern baru — cukup
+          # insert pemanggilannya saja, 2-arg, biar match sama signature asli.
           patch(
               "fs/stat.c",
-              r"SYSCALL_DEFINE4\(newfstatat, int, dfd, const char __user \*, filename,",
-              "#ifdef CONFIG_KSU\n"
-              "__attribute__((hot))\n"
-              "extern int ksu_handle_stat(int *dfd, const char __user **filename_user,\n"
-              "\t\t\t\tint *flags);\n"
-              "#endif\n\n",
+              None,
+              "",
               r"error = vfs_fstatat\(dfd, filename, &stat, flag\);",
-              "#ifdef CONFIG_KSU\n\tksu_handle_stat(&dfd, &filename, &flag);\n#endif\n\t",
+              "#ifdef CONFIG_KSU\n\tksu_handle_stat(&dfd, &filename);\n#endif\n\t",
               "KSU_HOOK_STAT",
           )
 
