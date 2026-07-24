@@ -219,6 +219,16 @@ jobs:
           echo "=== F2FS options added ==="
           grep "CONFIG_F2FS" arch/arm64/configs/cepheus_defconfig
       
+      - name: Enable OverlayFS full feature (redirect_dir + index) di defconfig
+        run: |
+          cd kernel
+          cat >> arch/arm64/configs/cepheus_defconfig << 'EOF'
+          CONFIG_OVERLAY_FS_REDIRECT_DIR=y
+          CONFIG_OVERLAY_FS_INDEX=y
+          EOF
+          echo "=== OverlayFS options added ==="
+          grep "CONFIG_OVERLAY_FS" arch/arm64/configs/cepheus_defconfig
+      
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
