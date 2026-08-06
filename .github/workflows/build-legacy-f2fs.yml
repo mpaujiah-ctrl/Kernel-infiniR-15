@@ -98,14 +98,16 @@ jobs:
 
           # CATATAN PERUBAHAN vs versi KSUN 3.2.0 (pinned commit) sebelumnya:
           # - Hook #3 (fs/read_write.c / ksu_handle_sys_read) DIHAPUS dari sini.
-          #   Sudah dicek langsung ke source branch `legacy`: hook baca-file
-          #   sekarang dipasang via kprobe internal KSUN sendiri
-          #   (sys_read_handler_pre di kernel/runtime/ksud_integration.c),
-          #   BUKAN lagi lewat call-site manual di kernel/fs. Signature lama
-          #   (3 argumen, return int) sudah tidak ada -- diganti
-          #   `void ksu_handle_sys_read(unsigned int fd)` dan dipanggil dari
-          #   kprobe, bukan dari fs/read_write.c. Kalau tetap dipatch manual,
-          #   build bakal gagal karena jumlah argumen sudah beda.
+          #   Ternyata raystef66/kernel_xiaomi_cepheus SUDAH punya hook
+          #   sendiri yang di-bake langsung ke fs/read_write.c (di dalam
+          #   vfs_read(), bukan di SYSCALL_DEFINE3(read,...)) yang manggil
+          #   ksu_handle_vfs_read(&file, &buf, &count, &pos) -- ini beda
+          #   nama & signature dari ksu_handle_sys_read yang dulu kita patch
+          #   manual. Symbol ksu_handle_vfs_read itu didefinisikan otomatis
+          #   oleh KSUN legacy SELAMA CONFIG_KPROBES tidak dipaksa nyala
+          #   (lihat step "Enable F2FS optimization" -- KSU_MANUAL_HOOK
+          #   default y kalau !KPROBES). Jadi hook read udah otomatis
+          #   ke-cover, gak perlu dipatch manual dari sini sama sekali.
           # - Hook #1, #2, #4, #5 (execveat, faccessat, stat, reboot) TIDAK
           #   berubah -- signature sudah dicek identik dengan branch legacy
           #   HEAD saat ini, aman dipakai apa adanya.
@@ -216,7 +218,7 @@ jobs:
           git add -A
           git commit -m "local changes: defconfig + 4 KSUN manual hooks (exec/open/stat/reboot) + KSUN legacy branch" || echo "nothing to commit"
 
-      - name: Enable F2FS optimization + KPROBES (wajib buat hook read internal KSUN legacy) di defconfig
+      - name: Enable F2FS optimization di defconfig
         run: |
           cd kernel
           cat >> arch/arm64/configs/cepheus_defconfig << 'EOF'
@@ -227,12 +229,27 @@ jobs:
           CONFIG_F2FS_FS_SECURITY=y
           CONFIG_F2FS_FS_COMPRESSION=y
           CONFIG_F2FS_CHECK_FS=y
-          CONFIG_KPROBES=y
-          CONFIG_HAVE_KPROBES=y
-          CONFIG_KRETPROBES=y
           EOF
-          echo "=== F2FS + KPROBES options added ==="
-          grep -E "CONFIG_F2FS|CONFIG_KPROBES|CONFIG_KRETPROBES" arch/arm64/configs/cepheus_defconfig
+          echo "=== F2FS options added ==="
+          grep "CONFIG_F2FS" arch/arm64/configs/cepheus_defconfig
+          echo
+          echo "=== Eksplisit kunci ke manual-hook mode (bukan cuma ngandelin default) ==="
+          cat >> arch/arm64/configs/cepheus_defconfig << 'EOF'
+          CONFIG_KSU_MANUAL_HOOK=y
+          # CONFIG_KSU_KPROBES_HOOK is not set
+          EOF
+          grep -E "CONFIG_KSU_MANUAL_HOOK|CONFIG_KSU_KPROBES_HOOK" arch/arm64/configs/cepheus_defconfig
+          echo
+          echo "=== CATATAN: CONFIG_KPROBES SENGAJA TIDAK diaktifkan ==="
+          echo "KSUN legacy: KSU_MANUAL_HOOK default y kalau !KPROBES, dan"
+          echo "KSU_KPROBES_HOOK eksplisit nulis 'should not be used on"
+          echo "kernel below 5.10' di Kconfig-nya sendiri. Kernel Dragon"
+          echo "Turtle 4.14 harus tetap di manual-hook mode -- itu juga yang"
+          echo "nyediain symbol ksu_handle_vfs_read & ksu_input_hook yang"
+          echo "dibutuhkan fs/read_write.c dan selinux_hide.c bawaan"
+          echo "raystef66. Kalau CONFIG_KPROBES dipaksa nyala, KSUN pindah ke"
+          echo "jalur tracepoint+kretprobe dan dua symbol itu hilang -> "
+          echo "linker error 'undefined symbol'."
 
       - name: Enable OverlayFS full feature (redirect_dir + index) di defconfig
         run: |
