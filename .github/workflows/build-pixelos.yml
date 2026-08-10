@@ -109,6 +109,97 @@ jobs:
           echo "=== Cek .rej di KernelSU-Next ==="
           find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
                     
+      - name: Adapter SUSFS <-> KSUN legacy selinux API
+        run: |
+          cd kernel/KernelSU-Next/kernel/selinux
+          python3 - << 'PYEOF'
+          # Branch `legacy` KSUN sudah refactor sendiri (is_task_ksu_domain,
+          # is_zygote, cache_sid) -- beda nama dari API lama yang diharapkan
+          # patch resmi SUSFS (susfs_is_current_ksu_domain, dst). Daripada
+          # paksa apply patch lama yang .rej, kita jembatani lewat wrapper
+          # tipis yang manggil fungsi native branch ini.
+
+          # --- selinux.h: tambah deklarasi ---
+          with open("selinux.h") as f:
+              h = f.read()
+          if "susfs_is_current_ksu_domain" not in h:
+              h = h.replace(
+                  "extern u32 ksu_file_sid;",
+                  "extern u32 ksu_file_sid;\n\n"
+                  "#ifdef CONFIG_KSU_SUSFS\n"
+                  "u32 susfs_get_current_sid(void);\n"
+                  "bool susfs_is_current_ksu_domain(void);\n"
+                  "bool susfs_is_current_zygote_domain(void);\n"
+                  "void susfs_set_zygote_sid(void);\n"
+                  "void susfs_set_ksu_sid(void);\n"
+                  "#endif\n"
+              )
+              with open("selinux.h", "w") as f:
+                  f.write(h)
+              print("[selinux.h] adapter declarations added")
+          else:
+              print("[selinux.h] sudah ada, skip")
+
+          # --- selinux.c: tambah implementasi wrapper + fix setenforce ---
+          with open("selinux.c") as f:
+              c = f.read()
+
+          if "void setenforce(bool enforce)" not in c:
+              c = c.replace(
+                  "void ksu_setenforce(bool enforce)\n{",
+                  "void ksu_setenforce(bool enforce)\n{"
+              )
+              # sisipkan wrapper setelah definisi ksu_setenforce selesai
+              marker = "#endif\n}\n\nbool getenforce(void)"
+              if marker in c:
+                  c = c.replace(
+                      marker,
+                      "#endif\n}\n\n"
+                      "/* Adapter: caller lama (kernelsu_init) masih manggil\n"
+                      " * setenforce(), tapi branch ini sudah rename ke\n"
+                      " * ksu_setenforce() -- jembatani di sini. */\n"
+                      "void setenforce(bool enforce)\n"
+                      "{\n\tksu_setenforce(enforce);\n}\n\n"
+                      "bool getenforce(void)"
+                  )
+                  print("[selinux.c] setenforce wrapper added")
+              else:
+                  print("[selinux.c] GAGAL cari marker getenforce, cek manual")
+
+          if "susfs_is_current_ksu_domain" not in c:
+              marker2 = "void escape_to_root_for_adb_root(void)"
+              adapter = (
+                  "#ifdef CONFIG_KSU_SUSFS\n"
+                  "/* Adapter: patch resmi SUSFS expect nama susfs_*, branch\n"
+                  " * ini sudah punya caching SID native lewat cache_sid()/\n"
+                  " * is_task_ksu_domain()/is_zygote() -- jembatani saja,\n"
+                  " * jangan re-implement caching dari nol. */\n"
+                  "u32 susfs_get_current_sid(void)\n"
+                  "{\n\treturn current_sid();\n}\n\n"
+                  "bool susfs_is_current_ksu_domain(void)\n"
+                  "{\n\treturn is_task_ksu_domain(current_cred());\n}\n\n"
+                  "bool susfs_is_current_zygote_domain(void)\n"
+                  "{\n\treturn is_zygote(current_cred());\n}\n\n"
+                  "void susfs_set_zygote_sid(void) { /* sudah dihandle cache_sid() */ }\n"
+                  "void susfs_set_ksu_sid(void) { /* sudah dihandle cache_sid() */ }\n"
+                  "#endif\n\n"
+              )
+              if marker2 in c:
+                  c = c.replace(marker2, adapter + marker2)
+                  print("[selinux.c] susfs adapter functions added")
+              else:
+                  print("[selinux.c] GAGAL cari marker escape_to_root, cek manual")
+
+          with open("selinux.c", "w") as f:
+              f.write(c)
+          PYEOF
+
+      - name: Cek asal-usul ksu_handle_devpts (belum ditangani)
+        run: |
+          cd kernel
+          echo "=== Cari siapa yang manggil ksu_handle_devpts ==="
+          grep -rn "ksu_handle_devpts" --include="*.c" --include="*.h" .
+      
       - name: Inject 4 manual hook wajib KSUN (exec.c, open.c, stat.c, reboot.c)
         run: |
           cd kernel
