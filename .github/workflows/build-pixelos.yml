@@ -303,14 +303,21 @@ jobs:
           echo "=== OverlayFS options added ==="
           grep "CONFIG_OVERLAY_FS" arch/arm64/configs/cepheus_defconfig
             
-      - name: Cek apakah patch KernelSU-Next SUSFS berhasil apply
+      - name: Dump lengkap semua .rej
         run: |
           cd kernel/KernelSU-Next
-          echo "=== Cari .rej sisa di KernelSU-Next ==="
-          find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
-          echo
-          echo "=== Cari definisi fungsi susfs_is_current_ksu_domain di seluruh KernelSU-Next ==="
-          grep -rn "susfs_is_current_ksu_domain\|susfs_is_current_zygote_domain\|ksu_handle_devpts" . || echo "TIDAK DITEMUKAN sama sekali di KernelSU-Next"
+          echo "======================================"
+          echo "=== kernel/Makefile.rej ==="
+          echo "======================================"
+          cat kernel/Makefile.rej
+          echo "======================================"
+          echo "=== kernel/selinux/selinux.h.rej ==="
+          echo "======================================"
+          cat kernel/selinux/selinux.h.rej
+          echo "======================================"
+          echo "=== kernel/selinux/selinux.c.rej ==="
+          echo "======================================"
+          cat kernel/selinux/selinux.c.rej
       
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
