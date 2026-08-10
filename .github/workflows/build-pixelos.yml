@@ -70,25 +70,49 @@ jobs:
         run: |
           git clone --depth=1 -b kernel-4.14 https://gitlab.com/simonpunk/susfs4ksu susfs4ksu
 
+      - name: Pre-create semua file baru dari patch SUSFS
+        run: |
+          cd kernel
+          PATCH_FILE="../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch"
+
+          echo "=== Scan file baru (new file mode) di dalam patch ==="
+          awk '
+            /^diff --git/ { path=$0; sub(/^diff --git a\//, "", path); sub(/ b\/.*/, "", path); is_new=0 }
+            /^new file mode/ { is_new=1 }
+            /^--- \/dev\/null/ && is_new { print path }
+          ' "$PATCH_FILE" | sort -u > /tmp/new_files.txt
+
+          echo "File baru yang terdeteksi:"
+          cat /tmp/new_files.txt
+          echo "---"
+
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if [ ! -f "$f" ]; then
+              mkdir -p "$(dirname "$f")"
+              touch "$f"
+              echo "created stub: $f"
+            else
+              echo "sudah ada, skip: $f"
+            fi
+          done < /tmp/new_files.txt
+
       - name: Apply SUSFS ke source PixelOS
         run: |
           cd kernel
-          # copy source susfs inti
           cp ../susfs4ksu/kernel_patches/fs/* fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
-          # apply patch utama (nyentuh task_mmu.c, stat.c, mm_struct, dll)
+
           patch -p1 < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch || true
-          # apply patch buat KernelSU-Next (bikin KSUN "sadar" SUSFS)
+
+          echo "=== Cek semua file .rej yang tersisa (hunk gagal) ==="
+          find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
+
           cp ../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
-          cd KernelSU-Next && patch -p1 < ../10_enable_susfs_for_ksu.patch
-     
-      - name: Tampilkan hunk yang gagal (buat debug manual)
-        run: |
-          cd kernel
-          echo "=== ISI REJECT ==="
-          cat fs/dcache.c.rej
-          echo "=== KONTEKS ASLI sekitar baris 2228 ==="
-          sed -n '2210,2250p' fs/dcache.c
+          cd KernelSU-Next
+          patch -p1 < ../10_enable_susfs_for_ksu.patch || true
+          echo "=== Cek .rej di KernelSU-Next ==="
+          find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
       
       - name: Sinkronkan fs/stat.c dengan SUSFS v2.1.0 (fix undefined symbol)
         run: |
