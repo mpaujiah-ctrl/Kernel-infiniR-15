@@ -77,11 +77,19 @@ jobs:
           cp ../susfs4ksu/kernel_patches/fs/* fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
           # apply patch utama (nyentuh task_mmu.c, stat.c, mm_struct, dll)
-          patch -p1 < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch
+          patch -p1 < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch || true
           # apply patch buat KernelSU-Next (bikin KSUN "sadar" SUSFS)
           cp ../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
           cd KernelSU-Next && patch -p1 < ../10_enable_susfs_for_ksu.patch
      
+      - name: Tampilkan hunk yang gagal (buat debug manual)
+        run: |
+          cd kernel
+          echo "=== ISI REJECT ==="
+          cat fs/dcache.c.rej
+          echo "=== KONTEKS ASLI sekitar baris 2228 ==="
+          sed -n '2210,2250p' fs/dcache.c
+      
       - name: Sinkronkan fs/stat.c dengan SUSFS v2.1.0 (fix undefined symbol)
         run: |
           cd kernel
