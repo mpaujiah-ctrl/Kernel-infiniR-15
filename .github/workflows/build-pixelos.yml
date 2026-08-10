@@ -96,24 +96,7 @@ jobs:
               echo "sudah ada, skip: $f"
             fi
           done < /tmp/new_files.txt
-
-      - name: Apply SUSFS ke source PixelOS
-        run: |
-          cd kernel
-          cp ../susfs4ksu/kernel_patches/fs/* fs/
-          cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
-
-          patch -p1 < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch || true
-
-          echo "=== Cek semua file .rej yang tersisa (hunk gagal) ==="
-          find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
-
-          cp ../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
-          cd KernelSU-Next
-          patch -p1 < ../10_enable_susfs_for_ksu.patch || true
-          echo "=== Cek .rej di KernelSU-Next ==="
-          find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
-
+      
       - name: Apply SUSFS ke source PixelOS
         run: |
           cd kernel
