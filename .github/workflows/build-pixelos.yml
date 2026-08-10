@@ -196,7 +196,7 @@ jobs:
               None,
               "",
               r"error = vfs_fstatat\(dfd, filename, &stat, flag\);",
-              "#ifdef CONFIG_KSU\n\tksu_handle_stat(&dfd, &filename);\n#endif\n\t",
+              "#ifdef CONFIG_KSU\n\tksu_handle_stat(&dfd, &filename, &flag);\n#endif\n\t",
               "KSU_HOOK_STAT",
           )
 
