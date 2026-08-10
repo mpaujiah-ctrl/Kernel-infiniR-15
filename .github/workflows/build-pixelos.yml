@@ -280,6 +280,22 @@ jobs:
           echo "=== OverlayFS options added ==="
           grep "CONFIG_OVERLAY_FS" arch/arm64/configs/cepheus_defconfig
 
+      - name: Diagnosa wiring SUSFS (Kconfig, Makefile, isi susfs.c)
+        run: |
+          cd kernel
+          echo "=== Cek opsi CONFIG_KSU_SUSFS di defconfig ==="
+          grep -i "SUSFS" arch/arm64/configs/cepheus_defconfig || echo "TIDAK ADA opsi SUSFS di defconfig!"
+          echo
+          echo "=== Cek Kconfig SUSFS tersedia di source ==="
+          grep -rn "KSU_SUSFS" fs/Kconfig fs/Makefile 2>/dev/null || echo "Kconfig/Makefile fs/ belum kenal opsi SUSFS"
+          echo
+          echo "=== Cek isi fs/susfs.c (harus ada fungsi susfs_is_current_ksu_domain) ==="
+          wc -l fs/susfs.c
+          grep -c "susfs_is_current_ksu_domain\|susfs_is_current_zygote_domain\|ksu_handle_devpts" fs/susfs.c
+          echo
+          echo "=== Lokasi asli win_minmax.c yang manggil fungsi susfs ==="
+          find . -name "win_minmax.c"
+      
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
