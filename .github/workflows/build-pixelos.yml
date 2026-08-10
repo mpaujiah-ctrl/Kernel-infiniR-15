@@ -75,27 +75,22 @@ jobs:
           cd kernel
           PATCH_FILE="../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch"
 
-          echo "=== Scan file baru (new file mode) di dalam patch ==="
-          awk '
-            /^diff --git/ { path=$0; sub(/^diff --git a\//, "", path); sub(/ b\/.*/, "", path); is_new=0 }
-            /^new file mode/ { is_new=1 }
-            /^--- \/dev\/null/ && is_new { print path }
-          ' "$PATCH_FILE" | sort -u > /tmp/new_files.txt
+          echo "=== Ambil semua path file yang disebut di patch ==="
+          grep '^diff --git' "$PATCH_FILE" \
+            | sed -E 's#^diff --git a/(.*) b/.*#\1#' \
+            | sort -u > /tmp/all_patch_files.txt
 
-          echo "File baru yang terdeteksi:"
-          cat /tmp/new_files.txt
-          echo "---"
+          echo "Total file disebut di patch: $(wc -l < /tmp/all_patch_files.txt)"
 
+          echo "=== Cek mana yang belum ada di tree PixelOS ==="
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             if [ ! -f "$f" ]; then
               mkdir -p "$(dirname "$f")"
               touch "$f"
-              echo "created stub: $f"
-            else
-              echo "sudah ada, skip: $f"
+              echo "created stub (belum ada di tree): $f"
             fi
-          done < /tmp/new_files.txt
+          done < /tmp/all_patch_files.txt
       
       - name: Apply SUSFS ke source PixelOS
         run: |
