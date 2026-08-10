@@ -319,6 +319,19 @@ jobs:
           echo "======================================"
           cat kernel/selinux/selinux.c.rej
       
+      - name: Upload file .rej sebagai artifact (buat didownload utuh)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: susfs-reject-files
+          path: |
+            kernel/KernelSU-Next/kernel/Makefile.rej
+            kernel/KernelSU-Next/kernel/selinux/selinux.h.rej
+            kernel/KernelSU-Next/kernel/selinux/selinux.c.rej
+            kernel/KernelSU-Next/kernel/Makefile
+            kernel/KernelSU-Next/kernel/selinux/selinux.h
+            kernel/KernelSU-Next/kernel/selinux/selinux.c
+      
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
