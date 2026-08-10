@@ -66,14 +66,22 @@ jobs:
           CEOF
           echo "yamltree.c replaced with stub"
 
-      - name: Upgrade SUSFS ke v2.1.0 (sinkron sama KSUN legacy)
+      - name: Clone SUSFS patch resmi (branch kernel-4.14)
+        run: |
+          git clone --depth=1 -b kernel-4.14 https://gitlab.com/simonpunk/susfs4ksu susfs4ksu
+
+      - name: Apply SUSFS ke source PixelOS
         run: |
           cd kernel
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/susfs.c" -o fs/susfs.c
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/include/linux/susfs.h" -o include/linux/susfs.h
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/include/linux/susfs_def.h" -o include/linux/susfs_def.h
-          grep "SUSFS_VERSION" include/linux/susfs.h
-
+          # copy source susfs inti
+          cp ../susfs4ksu/kernel_patches/fs/* fs/
+          cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
+          # apply patch utama (nyentuh task_mmu.c, stat.c, mm_struct, dll)
+          patch -p1 < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch
+          # apply patch buat KernelSU-Next (bikin KSUN "sadar" SUSFS)
+          cp ../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
+          cd KernelSU-Next && patch -p1 < ../10_enable_susfs_for_ksu.patch
+     
       - name: Sinkronkan fs/stat.c dengan SUSFS v2.1.0 (fix undefined symbol)
         run: |
           cd kernel
