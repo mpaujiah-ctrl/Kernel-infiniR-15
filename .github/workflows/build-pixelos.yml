@@ -108,19 +108,7 @@ jobs:
           patch -p1 < ../10_enable_susfs_for_ksu.patch || true
           echo "=== Cek .rej di KernelSU-Next ==="
           find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
-           
-      - name: Diagnosa file win_minmax.c yang aneh
-        run: |
-          cd kernel
-          echo "=== Cari SEMUA file bernama win_minmax.c di tree ==="
-          find . -name "win_minmax.c"
-          echo
-          echo "=== Isi win_minmax.c (harus cuma isi TCP BBR minmax, BUKAN kode KSU) ==="
-          cat ./net/ipv4/win_minmax.c 2>/dev/null | head -60
-          echo
-          echo "=== Cek apakah ada kode KSU/susfs nyasar ke file ini ==="
-          grep -n "kernelsu_init\|susfs_is_current\|setenforce\|ksu_handle_devpts" ./net/ipv4/win_minmax.c 2>/dev/null || echo "aman, tidak ada kode KSU di win_minmax.c versi ini"
-      
+                    
       - name: Inject 4 manual hook wajib KSUN (exec.c, open.c, stat.c, reboot.c)
         run: |
           cd kernel
@@ -315,6 +303,15 @@ jobs:
           echo "=== OverlayFS options added ==="
           grep "CONFIG_OVERLAY_FS" arch/arm64/configs/cepheus_defconfig
             
+      - name: Cek apakah patch KernelSU-Next SUSFS berhasil apply
+        run: |
+          cd kernel/KernelSU-Next
+          echo "=== Cari .rej sisa di KernelSU-Next ==="
+          find . -name "*.rej" -exec echo "--- {} ---" \; -exec cat {} \;
+          echo
+          echo "=== Cari definisi fungsi susfs_is_current_ksu_domain di seluruh KernelSU-Next ==="
+          grep -rn "susfs_is_current_ksu_domain\|susfs_is_current_zygote_domain\|ksu_handle_devpts" . || echo "TIDAK DITEMUKAN sama sekali di KernelSU-Next"
+      
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
