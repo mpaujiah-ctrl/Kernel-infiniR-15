@@ -10,8 +10,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Clone kernel source (branch fifteen)
-        run: git clone --depth=1 -b fifteen https://github.com/balgxmr/kernel_xiaomi_cepheus kernel
+      - name: Clone kernel source (branch fifteen-ksu-next)
+        run: git clone --depth=1 -b fifteen-ksu-next https://github.com/balgxmr/kernel_xiaomi_cepheus kernel
 
       - name: Clone KernelSU-Next branch legacy (ganti dari tarball commit hash)
         run: |
