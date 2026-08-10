@@ -237,6 +237,29 @@ jobs:
           git add -A
           git commit -m "local changes: defconfig + 4 KSUN manual hooks (exec/open/stat/reboot) + KSUN legacy branch" || echo "nothing to commit"
 
+      - name: Enable SUSFS Kconfig options di defconfig
+        run: |
+          cd kernel
+          cat >> arch/arm64/configs/cepheus_defconfig << 'EOF'
+          CONFIG_KSU_SUSFS=y
+          CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_PATH=y
+          CONFIG_KSU_SUSFS_SUS_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_KSTAT=y
+          CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+          CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+          CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+          CONFIG_KSU_SUSFS_ENABLE_LOG=y
+          CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+          CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+          CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+          CONFIG_KSU_SUSFS_SUS_SU=n
+          EOF
+          echo "=== Opsi SUSFS ditambahkan ==="
+          grep "CONFIG_KSU_SUSFS" arch/arm64/configs/cepheus_defconfig
+      
       - name: Enable F2FS optimization di defconfig
         run: |
           cd kernel
@@ -279,23 +302,7 @@ jobs:
           EOF
           echo "=== OverlayFS options added ==="
           grep "CONFIG_OVERLAY_FS" arch/arm64/configs/cepheus_defconfig
-
-      - name: Diagnosa wiring SUSFS (Kconfig, Makefile, isi susfs.c)
-        run: |
-          cd kernel
-          echo "=== Cek opsi CONFIG_KSU_SUSFS di defconfig ==="
-          grep -i "SUSFS" arch/arm64/configs/cepheus_defconfig || echo "TIDAK ADA opsi SUSFS di defconfig!"
-          echo
-          echo "=== Cek Kconfig SUSFS tersedia di source ==="
-          grep -rn "KSU_SUSFS" fs/Kconfig fs/Makefile 2>/dev/null || echo "Kconfig/Makefile fs/ belum kenal opsi SUSFS"
-          echo
-          echo "=== Cek isi fs/susfs.c (harus ada fungsi susfs_is_current_ksu_domain) ==="
-          wc -l fs/susfs.c
-          grep -c "susfs_is_current_ksu_domain\|susfs_is_current_zygote_domain\|ksu_handle_devpts" fs/susfs.c
-          echo
-          echo "=== Lokasi asli win_minmax.c yang manggil fungsi susfs ==="
-          find . -name "win_minmax.c"
-      
+            
       - name: Build kernel (pakai flag dari build.sh asli raystef66)
         run: |
           cd kernel
