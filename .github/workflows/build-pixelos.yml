@@ -215,12 +215,12 @@ jobs:
           echo "=== Ringkasan hook yang kepasang ==="
           grep -rn "ksu_handle_" fs/exec.c fs/open.c fs/stat.c kernel/reboot.c
 
-      - name: Verify hook call-sites (verify_ksu_hooks.py)
+      - name: Verify hook call-sites (verify_ksu_hooks_2.py)
         run: |
           cd kernel
           # --sys-read DIHAPUS dari sini karena hook itu sekarang otomatis
           # via kprobe internal KSUN, bukan call-site manual lagi.
-          python3 ../verify_ksu_hooks.py \
+          python3 ../verify_ksu_hooks_2.py \
             --dfd fs/stat.c \
             --execveat fs/exec.c \
             --faccessat fs/open.c \
