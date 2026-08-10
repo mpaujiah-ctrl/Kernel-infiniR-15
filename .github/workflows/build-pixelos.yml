@@ -317,13 +317,13 @@ jobs:
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cp kernel/out/arch/arm64/boot/Image kernel-pure.img
-          cd AnyKernel3 && zip -r9 ../InfiniR_cepheus_KSUN-legacy_F2FS.zip * -x README
+          cd AnyKernel3 && zip -r9 ../Dragon_cepheus.zip * -x README
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: InfiniR-cepheus-KSUN-legacy-F2FS
+          name: Dragon-cepheus
           path: |
-            InfiniR_cepheus_KSUN-legacy_F2FS.zip
+            Dragon_cepheus.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel-pure.img
