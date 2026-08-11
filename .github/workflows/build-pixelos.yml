@@ -239,6 +239,15 @@ jobs:
                   print("[selinux.c] GAGAL cari marker, cek manual")
           PYEOF
 
+      - name: Cek struktur inode_security_struct yang benar (kernel 4.14)
+        run: |
+          cd kernel
+          echo "=== Cari objsec.h asli milik kernel ==="
+          find . -path "*/selinux/include/objsec.h"
+          echo
+          echo "=== Cek cara akses inode security di kernel 4.14 ==="
+          grep -n "i_security\|inode_security_struct" security/selinux/include/objsec.h | head -20
+      
       - name: Cek helper selinux_inode() tersedia di objsec.h
         run: |
           cd kernel/KernelSU-Next/kernel/selinux
