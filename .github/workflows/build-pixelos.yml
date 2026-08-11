@@ -259,11 +259,6 @@ jobs:
           echo "=== Cari siapa yang manggil ksu_handle_devpts ==="
           grep -rn "ksu_handle_devpts" --include="*.c" --include="*.h" .
       
-      - name: Verifikasi ksu_handle_devpts benar-benar terkompilasi
-        run: |
-          cd kernel
-          nm out/vmlinux 2>/dev/null | grep ksu_handle_devpts || echo "PERINGATAN: symbol gak ketemu di vmlinux"
-      
       - name: Inject 4 manual hook wajib KSUN (exec.c, open.c, stat.c, reboot.c)
         run: |
           cd kernel
@@ -520,6 +515,11 @@ jobs:
           echo "=== Verify Image.gz-dtb ==="
           ls out/arch/arm64/boot/Image.gz-dtb
 
+      - name: Verifikasi ksu_handle_devpts benar-benar terkompilasi
+        run: |
+          cd kernel
+          nm out/vmlinux 2>/dev/null | grep ksu_handle_devpts || echo "PERINGATAN: symbol gak ketemu di vmlinux"
+      
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
