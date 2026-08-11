@@ -515,10 +515,20 @@ jobs:
           echo "=== Verify Image.gz-dtb ==="
           ls out/arch/arm64/boot/Image.gz-dtb
 
-      - name: Verifikasi ksu_handle_devpts benar-benar terkompilasi
+      - name: Diagnosa detail ksu_handle_devpts
         run: |
           cd kernel
-          nm out/vmlinux 2>/dev/null | grep ksu_handle_devpts || echo "PERINGATAN: symbol gak ketemu di vmlinux"
+          echo "=== Cek file vmlinux ada dan ukurannya ==="
+          find . -name "vmlinux" -exec ls -la {} \;
+          echo
+          echo "=== Cek pakai llvm-nm (bukan nm biasa) ==="
+          llvm-nm out/vmlinux 2>/dev/null | grep -i devpts || echo "llvm-nm: gak ketemu apa pun terkait devpts"
+          echo
+          echo "=== Cek langsung di source selinux.c, apakah fungsi beneran ketambah ==="
+          grep -n "int ksu_handle_devpts" KernelSU-Next/kernel/selinux/selinux.c || echo "PERINGATAN: fungsi TIDAK ADA di source selinux.c -- step injection kemarin gagal diam-diam"
+          echo
+          echo "=== Cek objek hasil compile selinux.o ==="
+          find . -name "selinux.o" -path "*KernelSU-Next*" -exec llvm-nm {} \; 2>/dev/null | grep -i devpts || echo "gak ketemu di selinux.o juga"
       
       - name: Pack AnyKernel3
         run: |
