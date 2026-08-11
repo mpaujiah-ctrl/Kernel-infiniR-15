@@ -194,6 +194,56 @@ jobs:
               f.write(c)
           PYEOF
 
+      - name: Implementasi ksu_handle_devpts (belum ada di branch legacy)
+        run: |
+          cd kernel/KernelSU-Next/kernel/selinux
+          python3 - << 'PYEOF'
+          with open("selinux.h") as f:
+              h = f.read()
+          if "ksu_handle_devpts" not in h:
+              h = h.replace(
+                  "extern u32 ksu_file_sid;",
+                  "extern u32 ksu_file_sid;\n\n"
+                  "int ksu_handle_devpts(struct inode *inode);"
+              )
+              with open("selinux.h", "w") as f:
+                  f.write(h)
+              print("[selinux.h] deklarasi ksu_handle_devpts ditambahkan")
+
+          with open("selinux.c") as f:
+              c = f.read()
+          if "int ksu_handle_devpts" not in c:
+              marker = "void escape_to_root_for_adb_root(void)"
+              impl = (
+                  "/* fs/devpts/inode.c manggil ini saat lookup file di /dev/pts,\n"
+                  " * supaya file itu ditandai sebagai ksu_file -- branch legacy\n"
+                  " * gak punya fungsi ini bawaan, disuplai manual di sini pakai\n"
+                  " * ksu_file_sid yang sudah di-cache oleh cache_sid(). */\n"
+                  "int ksu_handle_devpts(struct inode *inode)\n"
+                  "{\n"
+                  "\tstruct inode_security_struct *sec;\n\n"
+                  "\tif (!ksu_file_sid || !inode)\n"
+                  "\t\treturn 0;\n\n"
+                  "\tsec = selinux_inode(inode);\n"
+                  "\tif (sec)\n"
+                  "\t\tsec->sid = ksu_file_sid;\n\n"
+                  "\treturn 0;\n"
+                  "}\n\n"
+              )
+              if marker in c:
+                  c = c.replace(marker, impl + marker)
+                  with open("selinux.c", "w") as f:
+                      f.write(c)
+                  print("[selinux.c] ksu_handle_devpts berhasil ditambahkan")
+              else:
+                  print("[selinux.c] GAGAL cari marker, cek manual")
+          PYEOF
+
+      - name: Cek helper selinux_inode() tersedia di objsec.h
+        run: |
+          cd kernel/KernelSU-Next/kernel/selinux
+          grep -n "selinux_inode" objsec.h || echo "PERINGATAN: selinux_inode() gak ketemu di objsec.h, kemungkinan nama helper beda"
+      
       - name: Cek asal-usul ksu_handle_devpts (belum ditangani)
         run: |
           cd kernel
