@@ -515,20 +515,20 @@ jobs:
           echo "=== Verify Image.gz-dtb ==="
           ls out/arch/arm64/boot/Image.gz-dtb
 
-      - name: Diagnosa detail ksu_handle_devpts
+      - name: Diagnosa lanjutan - cari selinux.o & symbol KSU lainnya
         run: |
           cd kernel
-          echo "=== Cek file vmlinux ada dan ukurannya ==="
-          find . -name "vmlinux" -exec ls -la {} \;
+          echo "=== Cari SEMUA file .o hasil compile terkait KernelSU-Next ==="
+          find . -name "*.o" -path "*KernelSU-Next*" | head -30
           echo
-          echo "=== Cek pakai llvm-nm (bukan nm biasa) ==="
-          llvm-nm out/vmlinux 2>/dev/null | grep -i devpts || echo "llvm-nm: gak ketemu apa pun terkait devpts"
+          echo "=== Cari spesifik selinux.o (case-insensitive, mungkin nama beda) ==="
+          find . -iname "selinux.o"
           echo
-          echo "=== Cek langsung di source selinux.c, apakah fungsi beneran ketambah ==="
-          grep -n "int ksu_handle_devpts" KernelSU-Next/kernel/selinux/selinux.c || echo "PERINGATAN: fungsi TIDAK ADA di source selinux.c -- step injection kemarin gagal diam-diam"
+          echo "=== Cek symbol KSU lain yang PASTI harus ada kalau modul ke-link (pembanding) ==="
+          llvm-nm out/vmlinux 2>/dev/null | grep -E "kernelsu_init|ksu_setenforce|ksu_is_ksu_domain|susfs_is_current_ksu_domain" || echo "TIDAK ADA symbol KSU sama sekali di vmlinux -- modul KSU gak ke-link total"
           echo
-          echo "=== Cek objek hasil compile selinux.o ==="
-          find . -name "selinux.o" -path "*KernelSU-Next*" -exec llvm-nm {} \; 2>/dev/null | grep -i devpts || echo "gak ketemu di selinux.o juga"
+          echo "=== Cek apakah CONFIG_KSU beneran aktif di .config hasil build ==="
+          grep -E "^CONFIG_KSU=|^CONFIG_KSU_SUSFS=" out/.config
       
       - name: Pack AnyKernel3
         run: |
