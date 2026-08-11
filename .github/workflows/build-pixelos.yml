@@ -515,20 +515,15 @@ jobs:
           echo "=== Verify Image.gz-dtb ==="
           ls out/arch/arm64/boot/Image.gz-dtb
 
-      - name: Diagnosa lanjutan - cari selinux.o & symbol KSU lainnya
+      - name: Cek ksu_handle_devpts di object file yang benar
         run: |
           cd kernel
-          echo "=== Cari SEMUA file .o hasil compile terkait KernelSU-Next ==="
-          find . -name "*.o" -path "*KernelSU-Next*" | head -30
+          echo "=== Symbol di drivers/kernelsu/selinux/selinux.o ==="
+          llvm-nm out/drivers/kernelsu/selinux/selinux.o | grep -i devpts
           echo
-          echo "=== Cari spesifik selinux.o (case-insensitive, mungkin nama beda) ==="
-          find . -iname "selinux.o"
-          echo
-          echo "=== Cek symbol KSU lain yang PASTI harus ada kalau modul ke-link (pembanding) ==="
-          llvm-nm out/vmlinux 2>/dev/null | grep -E "kernelsu_init|ksu_setenforce|ksu_is_ksu_domain|susfs_is_current_ksu_domain" || echo "TIDAK ADA symbol KSU sama sekali di vmlinux -- modul KSU gak ke-link total"
-          echo
-          echo "=== Cek apakah CONFIG_KSU beneran aktif di .config hasil build ==="
-          grep -E "^CONFIG_KSU=|^CONFIG_KSU_SUSFS=" out/.config
+          echo "=== Bandingkan waktu modifikasi source vs kapan .o terakhir dicompile ==="
+          ls -la KernelSU-Next/kernel/selinux/selinux.c
+          ls -la out/drivers/kernelsu/selinux/selinux.o
       
       - name: Pack AnyKernel3
         run: |
